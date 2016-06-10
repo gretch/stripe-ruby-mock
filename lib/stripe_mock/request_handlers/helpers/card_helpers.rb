@@ -81,6 +81,18 @@ module StripeMock
         card
       end
 
+      def add_refund_to_charge(refund, charge)
+        refund[:charge] = charge[:id]
+
+        if charge[:refunds][:total_count] == 0
+          charge[:refunds][:total_count] += 1
+        end
+
+        charge[:refunds][:data] << refund
+
+        refund
+      end
+
       def add_source_to(type, type_id, params, objects)
         resource = assert_existence type, type_id, objects[type_id]
 

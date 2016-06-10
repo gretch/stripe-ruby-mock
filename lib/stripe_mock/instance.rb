@@ -23,6 +23,7 @@ module StripeMock
     include StripeMock::RequestHandlers::Accounts
     include StripeMock::RequestHandlers::BalanceTransactions
     include StripeMock::RequestHandlers::Charges
+    include StripeMock::RequestHandlers::Refunds
     include StripeMock::RequestHandlers::Cards
     include StripeMock::RequestHandlers::Sources
     include StripeMock::RequestHandlers::Subscriptions # must be before Customers
