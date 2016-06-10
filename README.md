@@ -4,11 +4,15 @@
 * Issues: https://github.com/rebelidealist/stripe-ruby-mock/issues
 * **CHAT**: https://gitter.im/rebelidealist/stripe-ruby-mock
 
+# REQUEST: Looking for More Core Contributors
+
+This gem has unexpectedly grown in popularity and I've gotten pretty busy, so I'm currently looking for more core contributors to help me out. If you're interested, there is only one requirement: submit a significant enough pull request and have it merged into master (many of you have already done this). Afterwards, ping me in [chat](https://gitter.im/rebelidealist/stripe-ruby-mock) and I will add you as a collaborator.
+
 ## Install
 
 In your gemfile:
 
-    gem 'stripe-ruby-mock', '~> 2.1.1', :require => 'stripe_mock'
+    gem 'stripe-ruby-mock', '~> 2.2.4', :require => 'stripe_mock'
 
 ## Features
 
@@ -19,7 +23,7 @@ In your gemfile:
 
 ### Specifications
 
-**STRIPE API TARGET VERSION:** 2015-02-18 (master)
+**STRIPE API TARGET VERSION:** 2015-09-08 (master)
 
 Older API version branches:
 
@@ -107,15 +111,28 @@ Every once in a while you want to make sure your tests are actually valid. Strip
 Here is an example of setting up your RSpec (2.x) test suite to run live with a command line switch:
 
 ```ruby
+# RSpec 2.x
 RSpec.configure do |c|
   if c.filter_manager.inclusions.keys.include?(:live)
-    puts "Running **live** tests against Stripe..."
     StripeMock.toggle_live(true)
+    puts "Running **live** tests against Stripe..."
   end
 end
 ```
 
 With this you can run live tests by running `rspec -t live`
+
+Here is an example of setting up your RSpec (3.x) test suite to run live with the same command line switch:
+
+```ruby
+# RSpec 3.x
+RSpec.configure do |c|
+  if c.filter_manager.inclusions.rules.include?(:live)
+    StripeMock.toggle_live(true)
+    puts "Running **live** tests against Stripe..."
+  end
+end
+```
 
 ## Mocking Card Errors
 
@@ -275,6 +292,12 @@ it "mocks a stripe webhook" do
   expect(customer_object.default_card).to_not be_nil
   # etc.
 end
+
+it "mocks stripe connect webhooks" do
+  event = StripeMock.mock_webhook_event('customer.created', user_id: 'acc_123123')
+
+  expect(event.user_id).to eq('acc_123123')
+end
 ```
 
 ### Customizing Webhooks
@@ -325,8 +348,8 @@ assign card data to a generated card token:
 it "generates a stripe card token" do
   card_token = StripeMock.generate_card_token(last4: "9191", exp_year: 1984)
 
-  cus = Stripe::Customer.create(card: card_token)
-  card = cus.cards.data.first
+  cus = Stripe::Customer.create(source: card_token)
+  card = cus.sources.data.first
   expect(card.last4).to eq("9191")
   expect(card.exp_year).to eq(1984)
 end

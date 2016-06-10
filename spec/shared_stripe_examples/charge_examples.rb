@@ -156,6 +156,36 @@ shared_examples 'Charge API' do
     expect(updated.fraud_details.to_hash).to eq(charge.fraud_details.to_hash)
   end
 
+  it "marks a charge as safe" do
+    original = Stripe::Charge.create({
+      amount: 777,
+      currency: 'USD',
+      source: stripe_helper.generate_card_token
+    })
+    charge = Stripe::Charge.retrieve(original.id)
+
+    charge.mark_as_safe
+
+    updated = Stripe::Charge.retrieve(original.id)
+    expect(updated.fraud_details[:user_report]).to eq "safe"
+  end
+
+  it "does not lose data when updating a charge" do
+    original = Stripe::Charge.create({
+      amount: 777,
+      currency: 'USD',
+      source: stripe_helper.generate_card_token,
+      metadata: {:foo => "bar"}
+    })
+    original.metadata[:receipt_id] = 1234
+    original.save
+
+    updated = Stripe::Charge.retrieve(original.id)
+
+    expect(updated.metadata[:foo]).to eq "bar"
+    expect(updated.metadata[:receipt_id]).to eq 1234
+  end
+
   it "disallows most parameters on updating a stripe charge" do
     original = Stripe::Charge.create({
       amount: 777,
@@ -169,7 +199,12 @@ shared_examples 'Charge API' do
     charge.amount = 777
     charge.source = {any: "source"}
 
-    expect { charge.save }.to raise_error(Stripe::InvalidRequestError, /Received unknown parameters: currency, amount, source/i)
+    expect { charge.save }.to raise_error(Stripe::InvalidRequestError) do |error|
+      expect(error.message).to match(/Received unknown parameters/)
+      expect(error.message).to match(/currency/)
+      expect(error.message).to match(/amount/)
+      expect(error.message).to match(/source/)
+    end
   end
 
 
@@ -223,6 +258,30 @@ shared_examples 'Charge API' do
       end
     end
   end
+
+  it 'when use starting_after param', live: true do
+    cus = Stripe::Customer.create(
+        description: 'Customer for test@example.com',
+        source: {
+            object: 'card',
+            number: '4242424242424242',
+            exp_month: 12,
+            exp_year: 2024
+        }
+    )
+    12.times do
+      Stripe::Charge.create(customer: cus.id, amount: 100, currency: "usd")
+    end
+
+    all = Stripe::Charge.all
+    default_limit = 10
+    half = Stripe::Charge.all(starting_after: all.data.at(1).id)
+
+    expect(half).to be_a(Stripe::ListObject)
+    expect(half.data.count).to eq(default_limit)
+    expect(half.data.first.id).to eq(all.data.at(2).id)
+  end
+
 
   describe 'captured status value' do
     it "reports captured by default" do
@@ -281,9 +340,10 @@ shared_examples 'Charge API' do
         capture: false
       })
 
-      returned_charge = charge.capture({ amount: 677 })
+      returned_charge = charge.capture({ amount: 677, application_fee: 123 })
       expect(charge.captured).to eq(true)
       expect(returned_charge.amount_refunded).to eq(100)
+      expect(returned_charge.application_fee).to eq(123)
       expect(returned_charge.id).to eq(charge.id)
       expect(returned_charge.captured).to eq(true)
     end

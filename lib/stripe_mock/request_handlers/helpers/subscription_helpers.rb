@@ -26,6 +26,13 @@ module StripeMock
       end
 
       def add_subscription_to_customer(cus, sub)
+        id = new_id('ch')
+        charges[id] = Data.mock_charge(:id => id, :customer => cus[:id], :amount => sub[:plan][:amount])
+        if cus[:currency].nil?
+          cus[:currency] = sub[:plan][:currency]
+        elsif cus[:currency] != sub[:plan][:currency]
+          raise Stripe::InvalidRequestError.new( "Can't combine currencies on a single customer. This customer has had a subscription, coupon, or invoice item with currency #{cus[:currency]}", 'currency', 400)
+        end
         cus[:subscriptions][:total_count] = (cus[:subscriptions][:total_count] || 0) + 1
         cus[:subscriptions][:data].unshift sub
       end
@@ -41,14 +48,14 @@ module StripeMock
       # `intervals` is set to 2 when calculating Stripe::Invoice.upcoming end from current_period_start & plan
       def get_ending_time(start_time, plan, intervals = 1)
         case plan[:interval]
-          when "week"
-            start_time + (604800 * (plan[:interval_count] || 1) * intervals)
-          when "month"
-            (Time.at(start_time).to_datetime >> ((plan[:interval_count] || 1) * intervals)).to_time.to_i
-          when "year"
-            (Time.at(start_time).to_datetime >> (12 * intervals)).to_time.to_i # max period is 1 year
-          else
-            start_time
+        when "week"
+          start_time + (604800 * (plan[:interval_count] || 1) * intervals)
+        when "month"
+          (Time.at(start_time).to_datetime >> ((plan[:interval_count] || 1) * intervals)).to_time.to_i
+        when "year"
+          (Time.at(start_time).to_datetime >> (12 * intervals)).to_time.to_i # max period is 1 year
+        else
+          start_time
         end
       end
 

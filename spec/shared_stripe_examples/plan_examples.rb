@@ -101,6 +101,15 @@ shared_examples 'Plan API' do
     expect(all.map &:amount).to include(54321, 98765)
   end
 
+  it 'retrieves plans with limit' do
+    101.times do | i|
+      stripe_helper.create_plan(id: "Plan #{i}", amount: 11)
+    end
+    all = Stripe::Plan.all(limit: 100)
+
+    expect(all.count).to eq(100)
+  end
+
 
   describe "Validation", :live => true do
     let(:params) { stripe_helper.create_plan_params }
@@ -109,7 +118,7 @@ shared_examples 'Plan API' do
     describe "Required Parameters" do
       after do
         params.delete(@name)
-        expect { subject }.to raise_error(Stripe::InvalidRequestError, "Missing required param: #{@name}")
+        expect { subject }.to raise_error(Stripe::InvalidRequestError, "Missing required param: #{@name}.")
       end
 
       it("requires a name") { @name = :name }

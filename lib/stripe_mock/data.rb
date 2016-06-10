@@ -1,6 +1,96 @@
 module StripeMock
   module Data
 
+    def self.mock_account(params = {})
+      id = params[:id] || 'acct_103ED82ePvKYlo2C'
+      {
+        id: id,
+        email: "bob@example.com",
+        statement_descriptor: nil,
+        display_name: "Stripe.com",
+        timezone: "US/Pacific",
+        details_submitted: false,
+        charges_enabled: false,
+        transfers_enabled: false,
+        currencies_supported: [
+          "usd"
+        ],
+        default_currency: "usd",
+        country: "US",
+        object: "account",
+        business_name: "Stripe.com",
+        business_url: nil,
+        support_phone: nil,
+        managed: false,
+        product_description: nil,
+        debit_negative_balances: true,
+        bank_accounts: {
+          object: "list",
+          total_count: 0,
+          has_more: false,
+          url: "/v1/accounts/#{id}/bank_accounts",
+          data: [
+
+          ]
+        },
+        verification: {
+          fields_needed: [],
+          due_by: nil,
+          contacted: false
+        },
+        transfer_schedule: {
+          delay_days: 7,
+          interval: "daily"
+        },
+        tos_acceptance: {
+          ip: nil,
+          date: nil,
+          user_agent: nil
+        },
+        legal_entity: {
+          type: nil,
+          business_name: nil,
+          address: {
+            line1: nil,
+            line2: nil,
+            city: nil,
+            state: nil,
+            postal_code: nil,
+            country: "US"
+          },
+          first_name: nil,
+          last_name: nil,
+          personal_address: {
+            line1: nil,
+            line2: nil,
+            city: nil,
+            state: nil,
+            postal_code: nil,
+            country: nil
+          },
+          dob: {
+            day: nil,
+            month: nil,
+            year: nil
+          },
+          additional_owners: nil,
+          verification: {
+            status: "unverified",
+            document: nil,
+            details: nil
+          }
+        },
+        decline_charge_on: {
+          cvc_failure: false,
+          avs_failure: false
+        },
+        keys: {
+          secret: "sk_test_AmJhMTLPtY9JL4c6EG0",
+          publishable: "pk_test_2rSaMTLPtY9JL449dsf"
+        }
+      }.merge(params)
+    end
+
     def self.mock_customer(sources, params)
       cus_id = params[:id] || "test_cus_default"
       sources.each {|source| source[:customer] = cus_id}
@@ -14,6 +104,7 @@ module StripeMock
         delinquent: false,
         discount: nil,
         account_balance: 0,
+        currency: nil,
         sources: {
           object: "list",
           total_count: sources.size,
@@ -39,12 +130,16 @@ module StripeMock
         livemode: false,
         paid: true,
         amount: 0,
+        application_fee: nil,
         currency: "usd",
+        destination: nil,
+        fraud_details: {},
+        receipt_email: nil,
+        receipt_number: nil,
         refunded: false,
-        fee: 0,
+        shipping: {},
+        statement_descriptor: "Charge #{charge_id}",
         status: 'succeeded',
-        fee_details: [
-        ],
         source: {
           object: "card",
           last4: "4242",
@@ -74,6 +169,7 @@ module StripeMock
           url: "/v1/charges/#{charge_id}/refunds",
           data: []
         },
+        transfer: nil,
         balance_transaction: "txn_2dyYXXP90MN26R",
         failure_message: nil,
         failure_code: nil,
@@ -96,7 +192,9 @@ module StripeMock
         object: "refund",
         balance_transaction: "txn_4fWh2RKvgxcXqV",
         metadata: {},
-        charge: "ch_4fWhYjzQ23UFWT"
+        charge: "ch_4fWhYjzQ23UFWT",
+        receipt_number: nil,
+        status: "succeeded"
       }.merge(params)
     end
 
@@ -140,16 +238,19 @@ module StripeMock
         object: "bank_account",
         bank_name: "STRIPEMOCK TEST BANK",
         last4: "6789",
+        routing_number: '110000000',
         country: "US",
         currency: "usd",
         validated: false,
+        status: 'new',
+        account_holder_name: 'John Doe',
+        account_holder_type: 'individual',
         fingerprint: "aBcFinGerPrINt123"
       }.merge(params)
     end
 
     def self.mock_coupon(params={})
       {
-        :duration => 'repeating',
         :duration_in_months => 3,
         :percent_off => 25,
         :amount_off => nil,
@@ -187,6 +288,7 @@ module StripeMock
         :customer => "c_test_customer",
         :quantity => 1,
         :tax_percent => nil,
+        :discount => nil,
         :metadata => {}
       }, params)
     end
@@ -210,9 +312,17 @@ module StripeMock
         customer: "test_customer",
         object: 'invoice',
         attempted: false,
+        application_fee: nil,
         closed: false,
+        description: nil,
         forgiven: false,
+        metadata: {},
         paid: false,
+        receipt_number: nil,
+        statement_descriptor: nil,
+        tax: nil,
+        tax_percent: nil,
+        webhooks_delivered_at: 1349825350,
         livemode: false,
         attempt_count: 0,
         amount_due: lines.map {|line| line[:amount]}.reduce(0, :+),
@@ -234,12 +344,14 @@ module StripeMock
         livemode: false,
         amount: 1000,
         currency: "usd",
+        discountable: false,
         proration: false,
         period: {
           start: 1349738920,
           end: 1349738920
         },
         quantity: nil,
+        subscription: nil,
         plan: nil,
         description: "Test invoice item",
         metadata: {}
@@ -281,6 +393,54 @@ module StripeMock
         :object => 'list',
         :url => '/v1/invoices?customer=test_customer'
       }
+    end
+
+    def self.mock_order(order_items, params)
+      or_id = params[:id] || "test_or_default"
+      order_items << Data.mock_order_item if order_items.empty?
+      {
+        id: or_id,
+        object: "order",
+        amount: 5000,
+        application: nil,
+        application_fee: nil,
+        charge: nil,
+        created: 1448272783,
+        currency: "eur",
+        customer: nil,
+        email: nil,
+        items: order_items,
+        livemode: false,
+        metadata: {},
+        selected_shipping_method: nil,
+        shipping: {
+          address: {
+            city: "Anytown",
+            country: "US",
+            line1: "1234 Main street",
+            line2: nil,
+            postal_code: "123456",
+            state: nil
+          },
+          name: "Jenny Rosen",
+          phone: nil
+        },
+        shipping_methods: nil,
+        status: "created",
+        updated: 1448272783
+      }.merge(params)
+    end
+
+    def self.mock_order_item(params={})
+      {
+        object: "order_item",
+        amount: 5000,
+        currency: "eur",
+        description: "Anyitem",
+        parent: "sku_parent",
+        quantity: 1,
+        type: "sku"
+      }.merge(params)
     end
 
     def self.mock_plan(params={})
@@ -334,7 +494,7 @@ module StripeMock
       }
     end
 
-    def self.mock_token(params={})
+    def self.mock_card_token(params={})
       {
         :id => 'tok_default',
         :livemode => false,
@@ -360,6 +520,22 @@ module StripeMock
           :address_state => nil,
           :address_zip => nil,
           :address_country => nil
+        }
+      }.merge(params)
+    end
+
+    def self.mock_bank_account_token(params={})
+      {
+        :id => 'tok_default',
+        :livemode => false,
+        :used => false,
+        :object => 'token',
+        :type => 'bank_account',
+        :bank_account => {
+          :id => 'bank_account_default',
+          :object => 'bank_account',
+          :last4 => '2222',
+          :fingerprint => 'JRRLXGh38NiYygM7',
         }
       }.merge(params)
     end
@@ -392,6 +568,75 @@ module StripeMock
           :url => "/v1/transfers/#{id}/reversals"
         },
       }.merge(params)
+    end
+
+    def self.mock_disputes(ids=[])
+      disputes = {}
+      ids.each do |id|
+        disputes[id] = self.mock_dispute(id: id)
+      end
+      disputes
+    end
+
+    def self.mock_dispute(params={})
+      id = params[:id] || "dp_test_dispute"
+      {
+        :id => id,
+        :object => "dispute",
+        :amount => 195,
+        :balance_transactions => [],
+        :charge => "ch_15RsQR2eZvKYlo2CA8IfzCX0",
+        :created => 1422915137,
+        :currency => "usd",
+        :evidence => self.mock_dispute_evidence,
+        :evidence_details => self.mock_dispute_evidence_details,
+        :is_charge_refundable => false,
+        :livemode => false,
+        :metadata => {},
+        :reason => "general",
+        :status => "under_review"
+      }.merge(params)
+    end
+
+    def self.mock_dispute_evidence
+      {
+        :access_activity_log => nil,
+        :billing_address => nil,
+        :cancellation_policy => nil,
+        :cancellation_policy_disclosure => nil,
+        :cancellation_rebuttal => nil,
+        :customer_communication => nil,
+        :customer_email_address => nil,
+        :customer_name => nil,
+        :customer_purchase_ip => nil,
+        :customer_signature => nil,
+        :duplicate_charge_documentation => nil,
+        :duplicate_charge_explanation => nil,
+        :duplicate_charge_id => nil,
+        :product_description => nil,
+        :receipt => nil,
+        :refund_policy => nil,
+        :refund_policy_disclosure => nil,
+        :refund_refusal_explanation => nil,
+        :service_date => nil,
+        :service_documentation => nil,
+        :shipping_address => nil,
+        :shipping_carrier => nil,
+        :shipping_date => nil,
+        :shipping_documentation => nil,
+        :shipping_tracking_number => nil,
+        :uncategorized_file => nil,
+        :uncategorized_text => nil
+      }
+    end
+
+    def self.mock_dispute_evidence_details
+      {
+        :due_by => 1424303999,
+        :has_evidence => false,
+        :past_due => false,
+        :submission_count => 0
+      }
     end
 
     def self.mock_transfer_array
@@ -453,9 +698,53 @@ module StripeMock
       }
     end
 
-    def self.mock_list_object(data, params = {})
+    def self.mock_list_object(data, params={})
       list = StripeMock::Data::List.new(data, params)
       list.to_h
     end
+
+    def self.mock_balance_transactions(ids=[])
+      bts = {}
+      ids.each do |id|
+        bts[id] = self.mock_balance_transaction(id: id)
+      end
+      bts
+    end
+
+    def self.mock_balance_transaction(params = {})
+      bt_id = params[:id] || 'test_txn_default'
+      source = params[:source] || 'ch_test_charge'
+      {
+        id: bt_id,
+        object: "balance_transaction",
+        amount: 10000,
+        available_on: 1462406400,
+        created: 1461880226,
+        currency: "usd",
+        description: nil,
+        fee: 320,
+        fee_details: [
+          {
+            amount: 320,
+            application: nil,
+            currency: "usd",
+            description: "Stripe processing fees",
+            type: "stripe_fee"
+          }
+        ],
+        net: 9680,
+        source: source,
+        sourced_transfers: {
+          object: "list",
+          data: [],
+          has_more: false,
+          total_count: 0,
+          url: "/v1/transfers?source_transaction=#{source}"
+        },
+        status: "pending",
+        type: "charge"
+      }.merge(params)
+    end
+
   end
 end

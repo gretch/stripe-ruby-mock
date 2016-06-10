@@ -38,14 +38,13 @@ module StripeMock
         id = $1
 
         charge = assert_existence :charge, id, charges[id]
-
-        allowed = [:description, :metadata, :receipt_email, :fraud_details]
+        allowed = allowed_params(params)
         disallowed = params.keys - allowed
         if disallowed.count > 0
           raise Stripe::InvalidRequestError.new("Received unknown parameters: #{disallowed.join(', ')}" , '', 400)
         end
 
-        charges[id] = charge.merge(params)
+        charges[id] = Util.rmerge(charge, params)
       end
 
       def get_charges(route, method_url, params, headers)
@@ -77,6 +76,10 @@ module StripeMock
             :amount => charge[:amount] - params[:amount]
           )
           add_refund_to_charge(refund, charge)
+        end
+
+        if params[:application_fee]
+          charge[:application_fee] = params[:application_fee]
         end
 
         charge[:captured] = true
@@ -130,6 +133,21 @@ module StripeMock
 
       def require_param(param)
         raise Stripe::InvalidRequestError.new("Missing required param: #{param}", param.to_s, 400)
+      end
+
+      def allowed_params(params)
+        allowed = [:description, :metadata, :receipt_email, :fraud_details, :shipping]
+
+        # This is a workaround for the way the Stripe API sends params even when they aren't modified.
+        # Stipe will include those params even when they aren't modified.
+        allowed << :fee_details if params.has_key?(:fee_details) && params[:fee_details].nil?
+        allowed << :source if params.has_key?(:source) && params[:source].empty?
+        if params.has_key?(:refunds) && (params[:refunds].empty? ||
+           params[:refunds].has_key?(:data) && params[:refunds][:data].nil?)
+          allowed << :refunds
+        end
+
+        allowed
       end
     end
   end
