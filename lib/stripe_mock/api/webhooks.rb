@@ -1,10 +1,10 @@
 module StripeMock
 
-  def self.mock_webhook_event(type, params={})
+  def self.mock_webhook_payload(type, params = {})
 
     fixture_file = File.join(@webhook_fixture_path, "#{type}.json")
 
-    if File.exists?(fixture_file) == false
+    unless File.exists?(fixture_file)
       unless Webhooks.event_list.include?(type)
         raise UnsupportedRequestError.new "Unsupported webhook event `#{type}` (Searched in #{@webhook_fixture_path})"
       end
@@ -15,6 +15,7 @@ module StripeMock
 
     json = Stripe::Util.symbolize_names(json)
     params = Stripe::Util.symbolize_names(params)
+    json[:user_id] = params.delete(:user_id) if params.key?(:user_id)
     json[:data][:object] = Util.rmerge(json[:data][:object], params)
     json.delete(:id)
 
@@ -25,8 +26,11 @@ module StripeMock
     else
       raise UnstartedStateError
     end
+    event_data
+  end
 
-    Stripe::Event.construct_from(event_data)
+  def self.mock_webhook_event(type, params={})
+    Stripe::Event.construct_from(mock_webhook_payload(type, params))
   end
 
   module Webhooks
@@ -41,9 +45,9 @@ module StripeMock
         'charge.dispute.created',
         'charge.dispute.updated',
         'charge.dispute.closed',
-        'customer.card.created',
-        'customer.card.deleted',
-        'customer.card.updated',
+        'customer.source.created',
+        'customer.source.deleted',
+        'customer.source.updated',
         'customer.created',
         'customer.updated',
         'customer.deleted',

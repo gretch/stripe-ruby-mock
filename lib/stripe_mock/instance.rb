@@ -2,70 +2,81 @@ module StripeMock
   class Instance
 
     include StripeMock::RequestHandlers::Helpers
+    include StripeMock::RequestHandlers::ParamValidators
+
+    DUMMY_API_KEY = (0...32).map { (65 + rand(26)).chr }.join.downcase
 
     # Handlers are ordered by priority
     @@handlers = []
 
-    def self.add_handler(route, name, version=nil)
+    def self.add_handler(route, name)
       @@handlers << {
         :route => %r{^#{route}$},
-        :name => name,
-        :version => version
+        :name => name
       }
     end
 
     def self.handler_for_method_url(method_url)
-      api_version_date = Date.strptime(StripeMock.version, '%Y-%m-%d')
-      default_handler = @@handlers.find {|h| method_url =~ h[:route] }
-
-      # Try to find a handler closest to the current version of the API
-      handlers = @@handlers.select {|h|
-        method_url =~ h[:route] && !h[:version].nil? && Date.strptime(h[:version], '%Y-%m-%d') <= api_version_date
-      }.sort_by {|h| h[:version]}
-
-      handlers.first || default_handler
+      @@handlers.find {|h| method_url =~ h[:route] }
     end
 
+    include StripeMock::RequestHandlers::Accounts
+    include StripeMock::RequestHandlers::BalanceTransactions
     include StripeMock::RequestHandlers::Charges
     include StripeMock::RequestHandlers::Refunds
     include StripeMock::RequestHandlers::Cards
+    include StripeMock::RequestHandlers::Sources
     include StripeMock::RequestHandlers::Subscriptions # must be before Customers
     include StripeMock::RequestHandlers::Customers
     include StripeMock::RequestHandlers::Coupons
+    include StripeMock::RequestHandlers::Disputes
     include StripeMock::RequestHandlers::Events
     include StripeMock::RequestHandlers::Invoices
     include StripeMock::RequestHandlers::InvoiceItems
+    include StripeMock::RequestHandlers::Orders
     include StripeMock::RequestHandlers::Plans
     include StripeMock::RequestHandlers::Recipients
+    include StripeMock::RequestHandlers::Transfers
     include StripeMock::RequestHandlers::Tokens
 
 
-    attr_reader :bank_tokens, :charges, :coupons, :customers, :events,
-                :invoices, :plans, :recipients, :subscriptions
+    attr_reader :accounts, :balance_transactions, :bank_tokens, :charges, :coupons, :customers,
+                :disputes, :events, :invoices, :invoice_items, :orders, :plans, :recipients,
+                :transfers, :subscriptions
 
-    attr_accessor :error_queue, :debug, :strict
+    attr_accessor :error_queue, :debug
 
     def initialize
+      @accounts = {}
+      @balance_transactions = Data.mock_balance_transactions(['txn_05RsQX2eZvKYlo2C0FRTGSSA','txn_15RsQX2eZvKYlo2C0ERTYUIA', 'txn_25RsQX2eZvKYlo2C0ZXCVBNM', 'txn_35RsQX2eZvKYlo2C0QAZXSWE', 'txn_45RsQX2eZvKYlo2C0EDCVFRT', 'txn_55RsQX2eZvKYlo2C0OIKLJUY', 'txn_65RsQX2eZvKYlo2C0ASDFGHJ', 'txn_75RsQX2eZvKYlo2C0EDCXSWQ', 'txn_85RsQX2eZvKYlo2C0UJMCDET', 'txn_95RsQX2eZvKYlo2C0EDFRYUI'])
       @bank_tokens = {}
       @card_tokens = {}
       @customers = {}
       @charges = {}
       @coupons = {}
+      @disputes = Data.mock_disputes(['dp_05RsQX2eZvKYlo2C0FRTGSSA','dp_15RsQX2eZvKYlo2C0ERTYUIA', 'dp_25RsQX2eZvKYlo2C0ZXCVBNM', 'dp_35RsQX2eZvKYlo2C0QAZXSWE', 'dp_45RsQX2eZvKYlo2C0EDCVFRT', 'dp_55RsQX2eZvKYlo2C0OIKLJUY', 'dp_65RsQX2eZvKYlo2C0ASDFGHJ', 'dp_75RsQX2eZvKYlo2C0EDCXSWQ', 'dp_85RsQX2eZvKYlo2C0UJMCDET', 'dp_95RsQX2eZvKYlo2C0EDFRYUI'])
       @events = {}
       @invoices = {}
+      @invoice_items = {}
+      @orders = {}
       @plans = {}
       @recipients = {}
+      @transfers = {}
       @subscriptions = {}
 
       @debug = false
       @error_queue = ErrorQueue.new
       @id_counter = 0
       @balance_transaction_counter = 0
-      @strict = true
+
+      # This is basically a cache for ParamValidators
+      @base_strategy = TestStrategies::Base.new
     end
 
-    def mock_request(method, url, api_key, params={}, headers={})
+    def mock_request(method, url, api_key, params={}, headers={}, api_base_url=nil)
       return {} if method == :xtest
+
+      api_key ||= (Stripe.api_key || DUMMY_API_KEY)
 
       # Ensure params hash has symbols as keys
       params = Stripe::Util.symbolize_names(params)
@@ -74,6 +85,7 @@ module StripeMock
 
       if handler = Instance.handler_for_method_url(method_url)
         if @debug == true
+          puts "- - - - " * 8
           puts "[StripeMock req]::#{handler[:name]} #{method} #{url}"
           puts "                  #{params}"
         end
@@ -87,8 +99,8 @@ module StripeMock
           [res, api_key]
         end
       else
-        puts "WARNING: Unrecognized method + url: [#{method} #{url}]"
-        puts " params: #{params}"
+        puts "[StripeMock] Warning : Unrecognized endpoint + method : [#{method} #{url}]"
+        puts "[StripeMock] params: #{params}" unless params.empty?
         [{}, api_key]
       end
     end
@@ -100,13 +112,12 @@ module StripeMock
 
     private
 
-    def assert_existance(type, id, obj, message=nil)
-      return unless @strict == true
-
+    def assert_existence(type, id, obj, message=nil)
       if obj.nil?
         msg = message || "No such #{type}: #{id}"
         raise Stripe::InvalidRequestError.new(msg, type.to_s, 404)
       end
+      obj
     end
 
     def new_id(prefix)

@@ -11,7 +11,7 @@ module StripeMock
 
         start_time = options[:current_period_start] || Time.now.utc.to_i
         params = { plan: plan, customer: cus[:id], current_period_start: start_time }
-        params.merge! options.select {|k,v| k =~ /application_fee_percent|quantity/}
+        params.merge! options.select {|k,v| k =~ /application_fee_percent|quantity|metadata|tax_percent/}
         # TODO: Implement coupon logic
 
         if (plan[:trial_period_days].nil? && options[:trial_end].nil?) || options[:trial_end] == "now"
@@ -26,22 +26,36 @@ module StripeMock
       end
 
       def add_subscription_to_customer(cus, sub)
-        cus[:subscriptions][:count] = (cus[:subscriptions][:count] || 0) + 1
-        cus[:subscriptions][:data] << sub
+        id = new_id('ch')
+        charges[id] = Data.mock_charge(:id => id, :customer => cus[:id], :amount => sub[:plan][:amount])
+        if cus[:currency].nil?
+          cus[:currency] = sub[:plan][:currency]
+        elsif cus[:currency] != sub[:plan][:currency]
+          raise Stripe::InvalidRequestError.new( "Can't combine currencies on a single customer. This customer has had a subscription, coupon, or invoice item with currency #{cus[:currency]}", 'currency', 400)
+        end
+        cus[:subscriptions][:total_count] = (cus[:subscriptions][:total_count] || 0) + 1
+        cus[:subscriptions][:data].unshift sub
+      end
+
+      def delete_subscription_from_customer(cus, subscription)
+        cus[:subscriptions][:data].reject!{|sub|
+          sub[:id] == subscription[:id]
+        }
+        cus[:subscriptions][:total_count] -=1
       end
 
       # `intervals` is set to 1 when calculating current_period_end from current_period_start & plan
       # `intervals` is set to 2 when calculating Stripe::Invoice.upcoming end from current_period_start & plan
       def get_ending_time(start_time, plan, intervals = 1)
         case plan[:interval]
-          when "week"
-            start_time + (604800 * (plan[:interval_count] || 1) * intervals)
-          when "month"
-            (Time.at(start_time).to_datetime >> ((plan[:interval_count] || 1) * intervals)).to_time.to_i
-          when "year"
-            (Time.at(start_time).to_datetime >> (12 * intervals)).to_time.to_i # max period is 1 year
-          else
-            start_time
+        when "week"
+          start_time + (604800 * (plan[:interval_count] || 1) * intervals)
+        when "month"
+          (Time.at(start_time).to_datetime >> ((plan[:interval_count] || 1) * intervals)).to_time.to_i
+        when "year"
+          (Time.at(start_time).to_datetime >> (12 * intervals)).to_time.to_i # max period is 1 year
+        else
+          start_time
         end
       end
 

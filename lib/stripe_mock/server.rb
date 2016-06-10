@@ -13,7 +13,6 @@ module StripeMock
         :server => opts[:server] || :thin,
         :show_errors => true
       )
-      StripeMock.version = opts[:"api-version"]
       server.start
     end
 
@@ -32,12 +31,12 @@ module StripeMock
       end
     end
 
-    def set_version(version)
-      StripeMock.version = version
-    end
-
     def get_data(key)
       @instance.send(key)
+    end
+
+    def destroy_resource(type, id)
+      @instance.send(type).delete(id)
     end
 
     def clear_data
@@ -46,10 +45,6 @@ module StripeMock
 
     def set_debug(toggle)
       @instance.debug = toggle
-    end
-
-    def set_strict(toggle)
-      @instance.strict = toggle
     end
 
     def set_global_id_prefix(value)
@@ -73,7 +68,6 @@ module StripeMock
     end
 
     def debug?; @instance.debug; end
-    def strict?; @instance.strict; end
     def ping; true; end
   end
 
